@@ -1,0 +1,40 @@
+[{
+  "Airport": {
+    "Code": "SEA",
+    "Name": "Salt Lake City, UT: Salt Lake City International"
+  },
+  "Time": {
+    "Label": "2016/01",
+    "Month": 1,
+    "Month Name": "January",
+    "Year": 2016
+  },
+  "Statistics": {
+    "# of Delays": {
+      "Carrier": 338,
+      "Late Aircraft": 540,
+      "National Aviation System": 253,
+      "Security": 3,
+      "Weather": 38
+    },
+    "Carriers": {
+      "Names": "American Airlines Inc.,Alaska Airlines Inc.,JetBlue Airways,Delta Air Lines Inc.,Frontier Airlines Inc.,SkyWest Airlines Inc.,United Air Lines Inc.,Southwest Airlines Co.",
+      "Total": 8
+    },
+    "Flights": {
+      "Cancelled": 84,
+      "Delayed": 1175,
+      "Diverted": 14,
+      "On Time": 7426,
+      "Total": 8699
+    },
+    "Minutes Delayed": {
+      "Carrier": 32066,
+      "Late Aircraft": 33682,
+      "National Aviation System": 8057,
+      "Security": 57,
+      "Total": 76978,
+      "Weather": 3116
+    }
+  }
+}]
