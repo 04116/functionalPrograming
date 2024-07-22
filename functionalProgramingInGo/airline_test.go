@@ -58,6 +58,7 @@ func Reduce[T any](entries []T, f reduce[T]) T {
 }
 
 func getData() []Entry {
+	// full file at https://github.com/PacktPublishing/Functional-Programming-in-Go./blob/main/Chapter6/resources/airlines.json
 	f, err := os.Open("./sample.json")
 	if err != nil {
 		panic(err)

@@ -115,6 +115,18 @@ func recursionFact(n int) int {
 	return n * recursionFact(n-1)
 }
 
+func TestFact(t *testing.T) {
+	ret := interativeFact(10)
+	if ret != 100 {
+		t.Error("Err interativeFact", ret)
+	}
+
+	ret = recursionFact(10)
+	if ret != 100 {
+		t.Error("Err recursionFact", ret)
+	}
+}
+
 func BenchmarkInterativeFact(t *testing.B) {
 	for i := 0; i < t.N; i++ {
 		interativeFact(10)
