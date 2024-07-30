@@ -1,4 +1,5 @@
 <template>
+  <!-- when currentBoard changed, show it-->
   <div
     v-for="(row, rowIdx) in currentBoard"
     :key="rowIdx"
