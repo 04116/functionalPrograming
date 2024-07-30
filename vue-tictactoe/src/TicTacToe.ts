@@ -2,53 +2,112 @@ import { computed, readonly, ref } from "vue";
 
 type Marker = "x" | "o" | "-";
 
+type Pos = {
+  Row: number;
+  Col: number;
+};
+
 export type Board = Array<Marker[]>;
 
-export function useTicTacToe(initialState?: Board[]) {
-  const initialBoard: Board = [
-    ["-", "-", "-"],
-    ["-", "-", "-"],
-    ["-", "-", "-"],
-  ];
-  // snapshots of game, use to restore snapshot at specific move
-  const boards = ref<Board[]>(initialState || [initialBoard]);
-  // index of snapshot version
-  const currentMove = ref(0);
+//
+// functional core
+//
 
-  // mark to change from "o" to "x" (and "x" -> "o" also)
-  const currentPlayer = ref<Marker>("o");
-
-  function makeMove(move: { row: number; col: number }) {
-    // make new board data
-    const newBoard = JSON.parse(JSON.stringify(boards.value))[
-      currentMove.value
-    ] as Board;
-    newBoard[move.row][move.col] = currentPlayer.value;
-    // take snapshot
-    boards.value.push(newBoard);
-
-    // point currentBoard to current version (after add new value)
-    // increase index that point to snapshot version
-    currentMove.value += 1;
-
-    // update current player, used for next turn of him/her
-    currentPlayer.value = currentPlayer.value === "o" ? "x" : "o";
+function move(
+  history: Pos[],
+  pos: Pos,
+): {
+  history: Pos[];
+  success: boolean;
+} {
+  // can not make a move to existed pos
+  for (let i = 0; i < history.length; i++) {
+    if (history[i].Col === pos.Col && history[i].Row === pos.Row) {
+      return { history: [...history], success: false };
+    }
   }
 
-  // change snapshot version by change snapshot version index
-  // then vue reactive system will do the rest
-  function undo() {
-    currentMove.value -= 1;
+  const newHist = [...history];
+  newHist.push(pos);
+  return {
+    history: newHist,
+    success: true,
+  };
+}
+
+const undo = (histCurs: number): number => {
+  return histCurs > 0 ? histCurs - 1 : 0;
+};
+
+const redo = (histCurs: number, histLen: number): number => {
+  return histCurs < histLen ? histCurs + 1 : histLen;
+};
+
+const DIM_UPPER = 3;
+const render = (initMarker: Marker, history: Pos[]): Board => {
+  const board: Board = [];
+  let marker = initMarker;
+
+  // init
+  for (let row = 0; row < DIM_UPPER; row++) {
+    board[row] = [];
+    for (let col = 0; col < DIM_UPPER; col++) {
+      board[row][col] = "-";
+    }
   }
-  function redo() {
-    currentMove.value += 1;
+
+  // restore history
+  history.forEach((pos: Pos) => {
+    board[pos.Row][pos.Col] = marker;
+    marker = marker === "o" ? "x" : "o";
+  });
+
+  return board;
+};
+
+//
+// imperative shell
+//
+export function useTicTacToe(_initMarker?: Marker) {
+  const initMarker: Marker = _initMarker || "o";
+  let history: Pos[] = [];
+
+  // why we need tmp value?!
+  // cause user can redo/undo many time before actually make a move
+  const histCurs = ref(0);
+  const board = computed(() => {
+    const curHist = history.slice(0, histCurs.value);
+    return render(initMarker, curHist);
+  });
+
+  function makeMove(pos: { row: number; col: number }) {
+    // makeMove at current version
+    const curHist = history.slice(0, histCurs.value);
+    const moveRes = move(
+      curHist,
+      { Row: pos.row, Col: pos.col },
+    );
+
+    if (moveRes.success) {
+      // if make a move success, we clear all rest history
+      history = moveRes.history;
+
+      histCurs.value += 1;
+    }
+  }
+
+  function makeUndo() {
+    histCurs.value = undo(histCurs.value);
+  }
+
+  function makeRedo() {
+    histCurs.value = redo(histCurs.value, history.length);
   }
 
   return {
     makeMove,
-    redo,
-    undo,
-    // reactive, currentBoard will change based on snapshot id version
-    currentBoard: computed(() => boards.value[currentMove.value]),
+    redo: makeRedo,
+    undo: makeUndo,
+    currentBoard: board,
   };
 }
