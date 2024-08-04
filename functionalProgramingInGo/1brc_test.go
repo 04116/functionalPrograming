@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"io"
 	"os"
 	"sync"
@@ -21,10 +22,9 @@ import (
 var (
 	readBufSize = 64 * 1024 * 1024
 	workers     = 8
-	batchSize   = 100
 )
 
-type inpRec struct {
+type tmpIp struct {
 	city string
 	val  int
 }
@@ -73,7 +73,7 @@ func mbrc(path string) (map[string]outRec, error) {
 
 	// start map
 	wrkWg := sync.WaitGroup{}
-	inpsc := make(chan []inpRec, workers)
+	inpsc := make(chan []byte, workers)
 	for i := 0; i < workers; i++ {
 		wrkWg.Add(1)
 		go func() {
@@ -87,28 +87,39 @@ func mbrc(path string) (map[string]outRec, error) {
 			// for _, workerChan := range sliceOfWorkerChans {
 			//     workerChan <- inps
 			// }
-			for inps := range inpsc {
+			for procBuf := range inpsc {
 				tmps := map[string]outRec{}
-				for _, inpRec := range inps {
-					tmp, found := tmps[inpRec.city]
-					if !found {
-						tmps[inpRec.city] = outRec{
-							city: inpRec.city,
-							min:  inpRec.val, max: inpRec.val,
-							count: 1,
-							sum:   inpRec.val,
+				var tmpIp tmpIp
+				prvIdx := 0
+				for i := 0; i < len(procBuf); i++ {
+					switch procBuf[i] {
+					// procBuf: hanoi;12,5\nhochiminh;15,6\n
+					case ';':
+						tmpIp.city = string(procBuf[prvIdx:i])
+						prvIdx = i + 1
+					case '\n':
+						tmpIp.val = floatToInt(string(procBuf[prvIdx:i]))
+						tmp, found := tmps[tmpIp.city]
+						if !found {
+							tmps[tmpIp.city] = outRec{
+								city: tmpIp.city,
+								min:  tmpIp.val, max: tmpIp.val,
+								count: 1,
+								sum:   tmpIp.val,
+							}
+							continue
 						}
-						continue
-					}
+						if tmp.max < tmpIp.val {
+							tmp.max = tmpIp.val
+						}
+						if tmp.min > tmpIp.val {
+							tmp.min = tmpIp.val
+						}
+						tmp.count += 1
+						tmp.sum += tmpIp.val
 
-					if tmp.max < inpRec.val {
-						tmp.max = inpRec.val
+						prvIdx = i + 1
 					}
-					if tmp.min > inpRec.val {
-						tmp.min = inpRec.val
-					}
-					tmp.count += 1
-					tmp.sum += inpRec.val
 				}
 
 				tmpOutc <- tmps
@@ -118,10 +129,8 @@ func mbrc(path string) (map[string]outRec, error) {
 
 	// read into batch of lines, send to worker
 	readBuf := make([]byte, readBufSize)
+	// procBuf include left bytes that not include in a line
 	var procBuf []byte
-
-	curBatchSize := 0
-	inpBatch := make([]inpRec, batchSize)
 	for {
 		count, err := f.Read(readBuf)
 		if err != nil {
@@ -131,31 +140,13 @@ func mbrc(path string) (map[string]outRec, error) {
 			return nil, err
 		}
 
-		prvIdx := 0
-		tmpIp := inpRec{}
 		procBuf = append(procBuf, readBuf[:count]...)
-		for i := 0; i < len(procBuf); i++ {
-			switch procBuf[i] {
-			// procBuf: hanoi;12,5\nhochiminh;15,6\n
-			case ';':
-				tmpIp.city = string(procBuf[prvIdx:i])
-				prvIdx = i + 1
-			case '\n':
-				tmpIp.val = floatToInt(string(procBuf[prvIdx:i]))
-				prvIdx = i + 1
 
-				inpBatch[curBatchSize] = tmpIp
-				curBatchSize += 1
-				if curBatchSize >= batchSize {
-					inpsc <- append([]inpRec{}, inpBatch...)
-					curBatchSize = 0
-				}
-			}
-		}
-		// remain not yet process
-		if prvIdx < len(procBuf)-1 {
-			procBuf = procBuf[prvIdx:]
-		}
+		lastNewLineIndex := bytes.LastIndex(procBuf, []byte{'\n'})
+		toSend := append([]byte{}, procBuf[:lastNewLineIndex+1]...)
+		inpsc <- toSend
+
+		procBuf = append([]byte{}, procBuf[lastNewLineIndex+1:]...)
 	}
 	// it safe to close channel at write side here
 	// at read side (map workers) they still can read remain messages
